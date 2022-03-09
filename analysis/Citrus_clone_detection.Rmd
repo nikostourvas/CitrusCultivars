@@ -1,0 +1,117 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+```{r}
+library(poppr)
+library(ggplot2)
+library(cowplot)
+library(ggtree)
+```
+
+# Color schemes
+```{r}
+wong=c("#000000","#E69F00","#56B4E9","#009E73","#006699","#D55E00","#CC79A7")
+```
+
+# Data input
+```{r}
+obj <- read.genalex(genalex = "../data/Citrus_Plate-1.csv")
+obj
+summary(object = obj)
+```
+
+```{r fig.width=7, fig.height=4}
+info_table(obj, type = "missing", plot = TRUE) 
+```
+
+## Filter Individuals
+### MLG - Multilocus Genotype Analysis
+```{r mlg-original, include=T}
+# convert to genclone
+obj_clone <- as.genclone(obj)
+
+mlg.filter(obj_clone, distance = diss.dist) <-  0 + .Machine$double.eps^0.5
+
+obj_clone
+```
+
+```{r}
+mlg.id(obj_clone)
+```
+
+### Contracted MLG Analysis
+The presence of closely related genotypes could influence a PCA analysis.
+To avoid this, groups of genotypes which differentiate by up to three alleles, 
+will be represented by only one individual.
+
+Why up to three alleles?
+This was determined from the inflection point in the histogram of dissimilarity
+distance (i.e. number of different alleles) between genotypes.
+```{r}
+diss_dist <- diss.dist(obj)
+diss_dist_p <- qplot(diss_dist, binwidth = 1) +
+                     scale_x_continuous(breaks = seq(0, 20, by=3)) +
+                     theme_bw()
+
+diss_dist_p
+```
+
+```{r mlg-contracted, include=T}
+# convert to genclone
+mlg.filter(obj_clone, distance = diss.dist) <-  3 + .Machine$double.eps^0.5
+
+obj_clone
+```
+
+```{r}
+mlg.id(obj_clone)
+```
+
+# Ind Tree
+insert locations
+```{r}
+locations <- read.csv("../data/Citrus_locations.csv")
+str(locations)
+```
+
+
+
+Relative dissimilarity matrix with UPGMA
+```{r ind_tree, fig.width=8, fig.height=20, dpi=300}
+diss <- diss.dist(obj)
+tr_diss_upgma <- upgma(diss)
+
+df <- data.frame(label = tr_diss_upgma$tip.label,
+                 Species = obj@strata$Pop)
+
+df$Location <- locations$Location
+
+tr_diss_upgma_plot <- ggtree(tr_diss_upgma, layout="rect") %<+% df +
+  geom_tiplab(aes(color=Species), size=3, nudge_x = 0.1) +
+  geom_tippoint(aes(shape=Location), size=3) +
+  theme_tree2(legend.position = "bottom", legend.direction = "vertical",
+              legend.title = element_text(colour = "black", face = "bold"),
+              legend.text = element_text(size = 9),
+              axis.text.x = element_text(size = 9))
+  
+  # geom_treescale(fontsize = 3)
+  # coord_cartesian(xlim = c(-0.03, 0.13), ylim = c(-0.02,0.15))
+
+revts(tr_diss_upgma_plot) + theme(legend.title = element_text(size = 8)) +
+  scale_color_manual(values = wong) +
+  scale_shape_manual(values = c(0:9, 11, 21:25)) +
+  scale_x_continuous(breaks=seq(-6, 0, 1),
+                     limits = c(-6, 1),
+                     labels=abs(seq(-6, 0, 1)))+
+  labs(colour = "Species", shape = "Location") +
+  theme(legend.title = element_text(size = 9))
+
+ggsave("../results/UPGMA_tree.png", dpi = 300, width = 7, height = 20)
+```
